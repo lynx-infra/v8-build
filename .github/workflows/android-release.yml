@@ -1,0 +1,61 @@
+name: publish artifact to maven
+
+on:
+  pull_request:
+    branches:
+      - main
+  
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Install SSH Key
+        uses: kielabokkie/ssh-key-and-known-hosts-action@v1
+        with:
+          ssh-private-key: ${{ secrets.PRIVATE_SSH_KEY }}
+          ssh-host: github.com
+      - uses: actions/checkout@v4
+        with:
+          path: v8-build
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name: Build AAR
+        run: |
+          pushd $GITHUB_WORKSPACE/v8-build
+          ./gradlew createAar
+          popd
+      - name: Add signature keys
+        run: |
+          pushd $GITHUB_WORKSPACE/v8-build
+          echo ${{ secrets.SIGNING_SECRET_KEY }} | base64 --decode > secret.gpg
+          popd
+      - name: Publish artifact to local
+        run: |
+          pushd $GITHUB_WORKSPACE/v8-build
+          ./gradlew publish -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }} \
+          -Psigning.password=${{ secrets.SIGNING_PASSWORD }} \
+          -Psigning.secretKey=${{ secrets.SIGNING_SECRET_KEY }}
+          pushd ./build/release/
+          zip -r test_release_1216.zip ./engineer
+          popd
+          popd
+      # - name: Publish artifact to release
+      #   uses: ncipollo/release-action@v1
+      #   with:
+      #     tag: test-release-1216
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     replacesArtifacts: true
+      #     allowUpdates: true
+      #     artifacts: "./build/release/test_release_1216.zip"
+      - name: Publish artifact to maven
+        env:
+          ARTIFACT_PATH: '["$GITHUB_WORKSPACE/v8-build/build/release/test_release_1216.zip"]'
+        uses: lynx-infra/maven-publish-action@main
+        with:
+          portal_api_token: ${{ secrets.PORTAL_API_TOKEN }}
+          artifact_path_list: ${{ env.ARTIFACT_PATH }}
+          
