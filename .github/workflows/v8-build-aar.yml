@@ -9,7 +9,7 @@ on:
         type: string
 jobs:
   clone_v8:
-    runs-on: ubuntu-latest
+    runs-on: lynx-infra-ubuntu-22.04-medium
     permissions:
       contents: write
     steps:
